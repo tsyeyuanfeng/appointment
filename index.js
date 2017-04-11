@@ -1,3 +1,4 @@
+const readlineSync = require('readline-sync');
 const request = require('request');
 const co = require('co');
 const Promise = require('promise');
@@ -11,12 +12,44 @@ const {
   departmentId,
   dutyDate,
   dutyCode,
-  smsVerifyCode,
   patientId,
   hospitalCardId,
   medicareCardId
 } = config;
 
+/**
+ * 获取短信验证码
+ * @return {Promise}
+ */
+function getSmsCode() {
+  const promise = new Promise((resolve, reject) => {
+    const options = {
+      uri: 'http://www.bjguahao.gov.cn/v/sendorder.htm',
+      method: 'POST',
+      headers: {
+        Cookie: cookie
+      }
+    };
+    request(options, (error, response, body) => {
+      if(error) {
+        reject(error);
+      }
+      else if(response.statusCode >= 200 && response.statusCode < 300){
+        body = JSON.parse(body);
+        if(body.code !== 200) {
+          reject(new Error(`返回业务状态码不正确：${body.code}-${body.msg}`));
+        }
+        else {
+          resolve();
+        }
+      }
+      else {
+        reject(new Error(`返回HTTP状态码不正确：${response.statusCode}`));
+      }
+    });
+  });
+  return promise;
+}
 
 /**
  * 获取值班列表数据
@@ -103,7 +136,7 @@ function visitOrderPage(dutySource) {
  * @param {String} reimbursementType 报销类型
  * @return {Promise}
  */
-function makeAppointment(dutySource, patientId, hospitalCardId, medicareCardId, reimbursementType = '1') {
+function makeAppointment(smsVerifyCode, dutySource, patientId, hospitalCardId, medicareCardId, reimbursementType = '1') {
   const { dutySourceId, hospitalId, departmentId, doctorId } = dutySource;
   const promise = new Promise((resolve, reject) => {
     const options = {
@@ -176,8 +209,12 @@ co(function* () {
   if(availableDutySources.length > 0) {
     logger.info('获取到可预约的值班列表');
     const visitOrderPageResult = yield visitOrderPage(dutySources[0]);
-    logger.info('进入下单页，开始预约...');
-    const result = yield makeAppointment(dutySources[0], patientId, hospitalCardId, medicareCardId, 1);
+    logger.info('进入下单页，发送短信验证码...');
+    yield getSmsCode();
+    logger.info('短信验证码发送成功');
+    const smsVerifyCode = readlineSync.question('输入短信验证码：');
+    logger.info('开始预约');
+    const result = yield makeAppointment(smsVerifyCode, dutySources[0], patientId, hospitalCardId, medicareCardId, 1);
     logger.info(`预约成功`);
   }
   else {

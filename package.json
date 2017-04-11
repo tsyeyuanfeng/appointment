@@ -12,6 +12,7 @@
     "co": "^4.6.0",
     "log4js": "^1.1.1",
     "promise": "^7.1.1",
+    "readline-sync": "^1.4.7",
     "request": "^2.81.0",
     "request-promise": "^4.1.1"
   }
